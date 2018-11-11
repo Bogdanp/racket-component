@@ -17,7 +17,7 @@
           [system-stop (-> system? void?)]
           [system-get (-> system? symbol? component?)]
           [system->dot (-> system? string?)]
-          [system->png (-> system? path-string? string?)]))
+          [system->png (-> system? path-string? boolean?)]))
 
 (define-logger system)
 
