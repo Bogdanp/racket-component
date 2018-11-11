@@ -1,26 +1,43 @@
 #lang racket/base
 
-(require racket/contract/base
-         racket/list
+(require (for-syntax racket/base
+                     racket/syntax
+                     syntax/parse)
+         racket/contract/base
          racket/match
          "component.rkt"
          "dependency.rkt")
 
-(provide (contract-out
+(provide define-system
+
+         (contract-out
           [system? (-> any/c boolean?)]
-          [make-system (-> system-definition? system?)]
+          [make-system (-> system-spec? system?)]
           [system-start (-> system? void?)]
           [system-stop (-> system? void?)]
           [system-get (-> system? symbol? component?)]))
 
 (define-logger system)
 
-(define system-definition?
+(define system-spec?
   (listof (or/c
-           (list/c symbol? any/c)
-           (list/c symbol? (listof symbol?) any/c))))
+           (list/c symbol? (-> any/c component?))
+           (list/c symbol? (listof symbol?) (-> any/c component?)))))
 
 (struct system (dependencies factories components))
+
+(define-syntax (define-system stx)
+  (define-syntax-class component
+    (pattern (name:id e:expr)
+             #:with spec #'(list 'name (list) e))
+    (pattern (name:id (dep-name:id ...) e:expr)
+             #:with spec #'(list 'name (list 'dep-name ...) e)))
+
+  (syntax-parse stx
+    [(_ name:id component0:component component:component ...)
+     (with-syntax ([name (format-id #'name "~a-system" #'name)])
+       #'(define name
+           (make-system (list component0.spec component.spec ...))))]))
 
 (define (make-system spec)
   (define-values (factories dependencies)
@@ -66,7 +83,9 @@
   (component-stop component))
 
 (define (system-get system id)
-  (hash-ref (system-components system) id))
+  (with-handlers ([exn:fail? (lambda (e)
+                               (raise-argument-error 'system-get "a declared component" id))])
+    (hash-ref (system-components system) id)))
 
 
 (module+ test
@@ -117,10 +136,10 @@
       (check-eq? a-service (system-get test-system 'a-service))
       (app))
 
-    (define test-system
-      (make-system `((db ,make-db)
-                     (app [db a-service] ,make-app)
-                     (a-service [db] ,make-a-service))))
+    (define-system test
+      [db make-db]
+      [app (db a-service) make-app]
+      [a-service (db) make-a-service])
 
     (system-start test-system)
     (check-true
@@ -159,8 +178,8 @@
       [(define (component-start sa) sa)
        (define (component-stop sa) sa)])
 
-    (define test-system
-      (make-system `((sa ,service-a))))
+    (define-system test
+      [sa service-a])
 
     (system-start test-system)
     (check-exn
