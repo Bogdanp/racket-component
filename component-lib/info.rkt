@@ -4,4 +4,4 @@
 (define collection 'multi)
 
 (define deps '("base"))
-(define build-deps '("rackunit-lib"))
+(define build-deps '())
