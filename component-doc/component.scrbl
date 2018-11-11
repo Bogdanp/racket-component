@@ -6,7 +6,7 @@
 @title{Component}
 @author[(author+email "Bogdan Popa" "bogdan@defn.io")]
 
-@defmodule[component/base]
+@defmodule[component]
 
 @section[#:tag "intro"]{Introduction}
 
@@ -184,6 +184,23 @@ order that they were started in.
   Stops a system.
 }
 
+@defproc[(system-get [system system?]
+                     [id symbol?]) component?]{
+  Get a component by its name from a system.  Raises @racket[exn:fail]
+  if called before the system is started or if @racket[id] refers to a
+  component that wasn't defined.
+}
+
+@defproc[(system->dot [system system?]) string?]{
+  Generate @hyperlink["https://www.graphviz.org/doc/info/lang.html"]{dot}
+  notation representing a system's dependency graph.
+}
+
+@defproc[(system->png [system system?]
+                      [output-path path-string?]) boolean?]{
+  Generate a PNG of a system's dependency graph.  Requires Graphviz to
+  be installed and its dot command to be on the PATH.
+}
 
 @section[#:tag "ack"]{Acknowledgements}
 

@@ -15,7 +15,9 @@
           [make-system (-> system-spec? system?)]
           [system-start (-> system? void?)]
           [system-stop (-> system? void?)]
-          [system-get (-> system? symbol? component?)]))
+          [system-get (-> system? symbol? component?)]
+          [system->dot (-> system? string?)]
+          [system->png (-> system? path-string? string?)]))
 
 (define-logger system)
 
@@ -82,10 +84,16 @@
   (define component (hash-ref (system-components s) id))
   (component-stop component))
 
-(define (system-get system id)
+(define (system-get s id)
   (with-handlers ([exn:fail? (lambda (e)
                                (raise-argument-error 'system-get "a declared component" id))])
-    (hash-ref (system-components system) id)))
+    (hash-ref (system-components s) id)))
+
+(define (system->dot s)
+  (dependency-graph->dot (system-dependencies s)))
+
+(define (system->png s output-path)
+  (dependency-graph->png (system-dependencies s) output-path))
 
 
 (module+ test

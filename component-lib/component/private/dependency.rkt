@@ -5,7 +5,9 @@
 
 (require racket/contract/base
          racket/match
+         racket/port
          racket/set
+         racket/system
          "graph.rkt")
 
 (provide (contract-out
@@ -15,7 +17,9 @@
           [direct-dependencies (-> graph? any/c (listof any/c))]
           [transitive-dependencies (-> graph? any/c (listof any/c))]
           [starting-order (-> graph? (listof any/c))]
-          [stopping-order (-> graph? (listof any/c))]))
+          [stopping-order (-> graph? (listof any/c))]
+          [dependency-graph->dot (->* (graph?) (#:name string?) string?)]
+          [dependency-graph->png (->* (graph? path-string?) (#:name string?) boolean?)]))
 
 (define (make-dependency-graph [deps '()])
   (for/fold ([graph (make-graph)])
@@ -49,3 +53,20 @@
 
 (define starting-order (compose reverse graph-toposort))
 (define stopping-order graph-toposort)
+
+(define (dependency-graph->dot dg #:name [name "G"])
+  (with-output-to-string
+    (lambda ()
+      (displayln (format "digraph ~a {" name))
+      (for ([edge (graph-edges dg)])
+        (displayln (format "  ~a -> ~a;" (car edge) (cdr edge))))
+      (displayln "}"))))
+
+(define (dependency-graph->png dg output-path #:name [name "G"])
+  (define filename (path->string (build-path output-path)))
+  (match (process* (find-executable-path "dot") "-Tpng" "-o" filename)
+    [(list stdout stdin pid stderr control)
+     (display (dependency-graph->dot dg) stdin)
+     (close-output-port stdin)
+     (control 'wait)
+     (= 0 (control 'exit-code))]))
