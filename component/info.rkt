@@ -2,5 +2,7 @@
 
 (define collection 'multi)
 
-(define deps '("component-lib"))
-(define implies '("component-lib"))
+(define deps '("component-doc"
+               "component-lib"))
+(define implies '("component-doc"
+                  "component-lib"))
