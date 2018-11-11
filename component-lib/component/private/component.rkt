@@ -1,11 +1,13 @@
 #lang racket/base
 
-(require racket/generic)
+(require racket/contract/base
+         racket/generic)
 
 (provide gen:component
          component?
-         component-start
-         component-stop)
+         (contract-out
+          [component-start (-> component? component?)]
+          [component-stop (-> component? component?)]))
 
 (define-generics component
   (component-start component)
