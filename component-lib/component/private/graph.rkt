@@ -52,24 +52,24 @@
 
 ; top o' the sortin' to ya, dear reader!
 (define (graph-toposort g)
-  (define (go free-vertices g sorted)
-    (match free-vertices
-      [(list)
-       (values g (reverse sorted))]
-
-      [(list free-vertex free-vertices ...)
-       (define-values (g* free-vertices*)
-         (for/fold ([g g] [free-vertices free-vertices])
-                   ([pointed-vertex (graph-successors g free-vertex)])
-           (define g* (graph-remove-edge g free-vertex pointed-vertex))
-           (if (free-vertex? g* pointed-vertex)
-               (values g* (cons pointed-vertex free-vertices))
-               (values g* free-vertices))))
-
-       (go free-vertices* g* (cons free-vertex sorted))]))
-
   (define-values (g* vertices)
-    (go (free-vertices g) g '()))
+    (let loop ([g g]
+               [free (free-vertices g)]
+               [sorted '()])
+      (match free
+        [(list)
+         (values g (reverse sorted))]
+
+        [(list free-vertex free ...)
+         (define-values (g* free*)
+           (for/fold ([g g] [free free])
+                     ([pointed-vertex (graph-successors g free-vertex)])
+             (define g* (graph-remove-edge g free-vertex pointed-vertex))
+             (if (free-vertex? g* pointed-vertex)
+                 (values g* (cons pointed-vertex free))
+                 (values g* free))))
+
+         (loop g* free* (cons free-vertex sorted))])))
 
   (when (not (null? (graph-edges g*)))
     (raise (exn:fail:graph:cycle "cycle detected" (current-continuation-marks))))
