@@ -25,11 +25,10 @@ Let's assume that you're writing a web application that emails users
 when they sign up.  Your components are probably going to be:
 
 @itemlist[
-  #:style 'unordered
   @item{the database (no dependencies),}
   @item{the mailer (no dependencies),}
   @item{the user manager (depends on the database) and}
-  @item{the server (depends on the database, the mailer and the user manager).}
+  @item{the http frontend (depends on each of the above).}
 ]
 
 Assuming that each of the identified components is a struct that
@@ -37,58 +36,43 @@ implements the @racket[gen:component] interface, your system might
 look something like this:
 
 @racketblock[
-  (define prod-system
-    (make-system `((db ,make-database)
-                   (mailer ,make-mailer)
-                   (user-manager [db] ,(lambda (db) (make-user-manager db)))
-                   (server [db mailer user-manager] ,(lambda (db mailer user-manager)
-                                                        (make-server db mailer user-manager))))))
-
-  (start-system prod-system)
-  (stop-system prod-system)
-]
-
-The system specification is made up of a list of component
-specifications. Each component specification is made up of the unique
-id of a component in the system, an optional list of dependencies
-(other component ids) and a function that can be used to construct
-that component from its dependencies.
-
-The call to @racket[make-system] builds the system struct and its
-internal dependency graph but does not start the system.
-
-The call to @racket[system-start] starts the db and the
-mailer first (one or the other may be first since neither has any
-dependencies), then the user-manager and finally the server.
-
-Finally, the call to @racket[system-stop] stops each component in the
-system in the reverse order that they were started.
-
-The above definition can be simplified by using the
-@racket[define-system] syntax:
-
-@racketblock[
   (define-system prod
     [db make-database]
     [mailer make-mailer]
     [user-manager (db) (lambda (db) (make-user-manager db))]
-    [server (db mailer user-manager) (lambda (db mailer user-manager)
-                                        (make-server db mailer user-manager))])
+    [http (db mailer user-manager) (lambda (db mailer user-manager)
+                                     (make-http db mailer user-manager))])
+
+  (system-start prod-system)
+  (system-stop prod-system)
 ]
 
-The order in which components are declared in the specification is not
-important and there are no constraints on the names of each component
-in a system specification so having more than one component of each
-type is perfectly fine:
+The system specification is made up of a list of component
+specifications.  Each component specification is made up of the unique
+name of a component in the system, an optional list of dependencies
+(other component names) and a function that can be used to construct
+that component from its dependencies.  There are no constraints on the
+names of the components in the system and you can have multiple
+components of the same type.
 
-@racketblock[
-  (define-system prod
-    [app (read-db write-db) make-app]
-    [read-db (lambda ()
-               (make-database #:name "read-replica"))]
-    [write-db (lambda ()
-                (make-database #:name "master"))])
-]
+The @racket[define-system] form builds the system struct and its
+internal dependency graph but does not start the system.
+
+The call to @racket[system-start] starts the db and the mailer first
+(one or the other may be first since neither has any dependencies),
+then the user-manager and finally the http server.
+
+Finally, the call to @racket[system-stop] stops all the components in
+the system in the reverse order that they were started in.
+
+@subsection[#:tag "limitations"]{Limitations}
+
+Components that have no dependencies @emph{and} no dependents are
+never started.
+
+When a component fails during startup or shutdown (i.e. raises an
+exception), systems don't attempt to perform any sort of cleanup.
+This isn't really a limitation, but something to be aware of.
 
 
 @section[#:tag "reference"]{Reference}
@@ -136,11 +120,11 @@ Systems group components together according to a declarative
 specification.
 
 When a system is started, its components are each started in
-dependency order (if @racket['a] depends on @racket['b] which depends
-on @racket['c] then @racket['c] is started first, then @racket['b]
-then @racket['a]) and injected into their dependents' factory
-functions (@racket['c] is passed to @racket['b] which is finally
-passed to @racket['a]).
+dependency order (if @racket[a] depends on @racket[b] which depends on
+@racket[c] then @racket[c] is started first, then @racket[b] then
+@racket[a]) and injected into their dependents' factory functions
+(@racket[c] is passed to @racket[b] which is finally passed to
+@racket[a]).
 
 When a system is stopped, its components are stopped in the reverse
 order that they were started in.
@@ -165,7 +149,7 @@ order that they were started in.
           (component-name id)
           (factory expr)]]{
   Syntactic sugar for @racket[define] and @racket[make-system].
-  "-system" is appended to the given name so
+  @racket[-system] is appended to the given name so
 
   @racketblock[
     (define-system prod
@@ -173,7 +157,7 @@ order that they were started in.
       [app (db) make-app])
   ]
 
-  defines a system called "prod-system".
+  defines a system called @racket[prod-system].
 }
 
 @defproc[(system-start [system system?]) void?]{
@@ -185,10 +169,10 @@ order that they were started in.
 }
 
 @defproc[(system-get [system system?]
-                     [id symbol?]) component?]{
+                     [name symbol?]) component?]{
   Get a component by its name from a system.  Raises @racket[exn:fail]
-  if called before the system is started or if @racket[id] refers to a
-  component that wasn't defined.
+  if called before the system is started or if @racket[name] refers to
+  a component that wasn't defined.
 }
 
 @defproc[(system->dot [system system?]) string?]{
