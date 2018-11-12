@@ -81,12 +81,12 @@
 
 (define (stop-component s id)
   (log-system-debug "stopping component ~a" id)
-  (define component (hash-ref (system-components s) id))
-  (component-stop component))
+  (component-stop (system-get s id)))
 
 (define (system-get s id)
-  (with-handlers ([exn:fail? (lambda (e)
-                               (raise-argument-error 'system-get "a declared component" id))])
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (raise-argument-error 'system-get "a declared component" id))])
     (hash-ref (system-components s) id)))
 
 (define (system->dot s)
