@@ -15,6 +15,3 @@
 
 (module+ main
   (run-tests all-component-tests))
-
-(module+ test
-  (run-tests all-component-tests))
