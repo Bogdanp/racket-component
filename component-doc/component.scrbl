@@ -100,7 +100,7 @@ The implementations of @racket[component-start] and
 
 @deftogether[(
   @defidform[#:kind "interface" gen:component]
-  @defproc[(component? [component any/c]) bool?]
+  @defproc[(component? [component any/c]) boolean?]
 )]{
   The generic interface that specifies components.
 }
