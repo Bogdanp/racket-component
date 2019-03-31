@@ -59,7 +59,7 @@
     (lambda ()
       (displayln (format "digraph ~a {" name))
       (for ([edge (graph-edges dg)])
-        (displayln (format "  ~a -> ~a;" (car edge) (cdr edge))))
+        (displayln (format "  \"~a\" -> \"~a\";" (car edge) (cdr edge))))
       (displayln "}"))))
 
 (define (dependency-graph->png dg output-path #:name [name "G"])
