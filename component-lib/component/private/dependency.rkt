@@ -66,7 +66,7 @@
   (define filename (path->string (build-path output-path)))
   (match (process* (find-executable-path "dot") "-Tpng" "-o" filename)
     [(list stdout stdin pid stderr control)
-     (display (dependency-graph->dot dg) stdin)
+     (display (dependency-graph->dot dg #:name name) stdin)
      (close-output-port stdin)
      (control 'wait)
      (= 0 (control 'exit-code))]))
