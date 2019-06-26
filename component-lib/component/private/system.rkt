@@ -8,23 +8,24 @@
          "component.rkt"
          "dependency.rkt")
 
-(provide define-system
+(provide
+ define-system
 
-         (contract-out
-          [system? (-> any/c boolean?)]
-          [make-system (-> system-spec? system?)]
-          [system-start (-> system? void?)]
-          [system-stop (-> system? void?)]
-          [system-get (-> system? symbol? component?)]
-          [system->dot (-> system? string?)]
-          [system->png (-> system? path-string? boolean?)]))
+ (contract-out
+  [make-system (-> system-spec/c system?)]
+  [system? (-> any/c boolean?)]
+  [system-start (-> system? void?)]
+  [system-stop (-> system? void?)]
+  [system-get (-> system? symbol? component?)]
+  [system->dot (-> system? string?)]
+  [system->png (-> system? path-string? boolean?)]))
 
 (define-logger system)
 
-(define system-spec?
+(define system-spec/c
   (listof (or/c
-           (list/c symbol? (-> any/c component?))
-           (list/c symbol? (listof symbol?) (-> any/c component?)))))
+           (list/c symbol? any/c)
+           (list/c symbol? (listof symbol?) any/c))))
 
 (struct system (dependencies factories components))
 
@@ -57,7 +58,7 @@
                    (depend dependencies id dep-id)))]
 
         [else
-         (error 'system-spec "bad component definition ~a" definition)])))
+         (error 'make-system "bad component definition ~a" definition)])))
 
   (system dependencies factories (make-hasheq)))
 
