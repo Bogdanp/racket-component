@@ -45,7 +45,7 @@
       (check-exn
        exn:fail?
        (lambda ()
-         (system-get test-system 'sa)))))
+         (system-ref test-system 'sa)))))
 
    (test-suite
     "system-{start,stop}"
@@ -77,7 +77,7 @@
            a-service)])
 
       (define (make-a-service db)
-        (check-eq? db (system-get test-system 'db))
+        (check-eq? db (system-ref test-system 'db))
         (a-service))
 
       (struct app ()
@@ -91,8 +91,8 @@
            app)])
 
       (define (make-app db a-service)
-        (check-eq? db (system-get test-system 'db))
-        (check-eq? a-service (system-get test-system 'a-service))
+        (check-eq? db (system-ref test-system 'db))
+        (check-eq? a-service (system-ref test-system 'a-service))
         (app))
 
       (define-system test
@@ -103,7 +103,7 @@
       (system-start test-system)
       (check-true
        (db-running
-        (system-get test-system 'db)))
+        (system-ref test-system 'db)))
 
       (system-stop test-system)
       (check-equal?
@@ -112,7 +112,34 @@
 
       (check-false
        (db-running
-        (system-get test-system 'db)))))))
+        (system-ref test-system 'db)))))
+
+   (test-suite
+    "system-replace"
+
+    (test-case "can replace components' factories within a system"
+      (struct db (env)
+        #:methods gen:component
+        [(define (component-start a-db) a-db)
+         (define (component-stop a-db) a-db)])
+
+      (struct app (db)
+        #:methods gen:component
+        [(define (component-start an-app) an-app)
+         (define (component-stop an-app) an-app)])
+
+      (define-system prod
+        [db (lambda () (db "production"))]
+        [app (db) app])
+
+      (define test-system
+        (system-replace prod-system 'db (lambda ()
+                                          (db "test"))))
+
+      (system-start prod-system)
+      (system-start test-system)
+      (check-equal? (db-env (system-ref prod-system 'db)) "production")
+      (check-equal? (db-env (system-ref test-system 'db)) "test")))))
 
 (module+ test
   (require rackunit/text-ui)

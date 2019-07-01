@@ -168,11 +168,20 @@ order that they were started in.
   Stops a system.
 }
 
-@defproc[(system-get [system system?]
+@defproc[(system-ref [system system?]
                      [name symbol?]) component?]{
   Get a component by its name from a system.  Raises @racket[exn:fail]
   if called before the system is started or if @racket[name] refers to
   a component that wasn't defined.
+}
+
+@defproc[(system-replace [system system?]
+                         [id symbol?]
+                         [factory any/c]) system?]{
+  Returns a new, stopped, system with the factory for the @racket[id]
+  component replaced by @racket[factory].  This is useful if you have
+  a large system and you want to replace one of its components with a
+  stub (eg. for a web app's end-to-end tests).
 }
 
 @defproc[(system->dot [system system?]) string?]{

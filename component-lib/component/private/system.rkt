@@ -16,7 +16,9 @@
   [system? (-> any/c boolean?)]
   [system-start (-> system? void?)]
   [system-stop (-> system? void?)]
+  [system-ref (-> system? symbol? component?)]
   [system-get (-> system? symbol? component?)]
+  [system-replace (-> system? symbol? any/c system?)]
   [system->dot (-> system? string?)]
   [system->png (-> system? path-string? boolean?)]))
 
@@ -71,7 +73,7 @@
   (log-system-debug "starting component ~a" id)
   (define factory (hash-ref (system-factories s) id))
   (define dependencies (direct-dependencies (system-dependencies s) id))
-  (define arguments (map (lambda (id) (system-get s id)) dependencies))
+  (define arguments (map (lambda (id) (system-ref s id)) dependencies))
   (define component (apply factory arguments))
   (component-start component))
 
@@ -82,13 +84,24 @@
 
 (define (stop-component s id)
   (log-system-debug "stopping component ~a" id)
-  (component-stop (system-get s id)))
+  (component-stop (system-ref s id)))
 
-(define (system-get s id)
+(define (system-ref s id)
   (with-handlers ([exn:fail?
                    (lambda (e)
-                     (raise-argument-error 'system-get "a declared component" id))])
+                     (raise-argument-error 'system-ref "a declared component" id))])
     (hash-ref (system-components s) id)))
+
+(define system-get system-ref)  ;; backwards-compat
+
+(define (system-replace s id factory)
+  (define factories (system-factories s))
+  (unless (hash-has-key? factories id)
+    (raise-argument-error 'system-ref "a declared component" id))
+
+  (struct-copy system s
+               [components (make-hash)]
+               [factories (hash-set factories id factory)]))
 
 (define (system->dot s)
   (dependency-graph->dot (system-dependencies s)))
