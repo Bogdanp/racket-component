@@ -26,13 +26,10 @@
         e:expr ...+)
      (with-syntax ([system-name (format-id #'name "~a-system" #'name)]
                    [suite-name (datum->syntax #'name (symbol->string (syntax->datum #'name)))])
-       (with-syntax ([(component-definition ...)
-                      (datum->syntax stx (syntax->datum #'(component.spec ...)))]
-                     [(local-definition ...)
-                      (datum->syntax #'system-name
-                                     (syntax->datum
-                                      #'((component.name (system-get system-name 'component.name)) ...)))])
-         #'(let ([system-name (make-system (list component-definition ...))])
+       (with-syntax ([(local-definition ...)
+                      (syntax/loc #'system-name
+                        ((component.name (system-ref system-name 'component.name)) ...))])
+         #'(let ([system-name (make-system (list component.spec ...))])
              (test-suite
               suite-name
               #:before
