@@ -49,4 +49,7 @@
                     (system-stop system-name))))
 
               (let (local-definition ...)
-                e ...)))))]))
+                (test-suite
+                 suite-name
+
+                 e ...))))))]))
