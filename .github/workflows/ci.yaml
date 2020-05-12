@@ -1,0 +1,18 @@
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v0.8
+        with:
+          architecture: 'x64'
+          distribution: 'full'
+          version: '7.7'
+      - name: Install Package and its Dependencies
+        run: raco pkg install --auto --batch component-lib/ component-test/ component-doc/ component/
+      - name: Run Tests
+        run: raco test component-test/
