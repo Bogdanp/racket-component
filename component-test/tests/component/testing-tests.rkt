@@ -9,15 +9,11 @@
 
 (struct app (db)
   #:transparent
-  #:methods gen:component
-  [(define component-start values)
-   (define component-stop values)])
+  #:methods gen:component [])
 
 (struct db ()
   #:transparent
-  #:methods gen:component
-  [(define component-start values)
-   (define component-stop values)])
+  #:methods gen:component [])
 
 (define testing-tests
   (test-suite
@@ -30,7 +26,16 @@
 
      (test-case "binds the various components inside the suite"
        (check-true (app? app))
-       (check-true (db? db))))))
+       (check-true (db? db))))
+
+   (let ([bound-in-before? #f])
+     (system-test-suite test ([app (db) app]
+                              [db db])
+       #:before (lambda ()
+                  (set! bound-in-before? (not (not (app-db app)))))
+
+       (test-case "binds the components inside #:before"
+         (check-true bound-in-before?))))))
 
 (module+ test
   (require rackunit/text-ui)
