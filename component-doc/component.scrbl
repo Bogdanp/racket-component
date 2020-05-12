@@ -222,13 +222,13 @@ order that they were started in.
   nonexistent component.
 }
 
-@defproc[(system-replace [system system?]
+@defproc[(system-replace [s system?]
                          [id symbol?]
                          [factory any/c]) system?]{
-  Returns a new, stopped, system with the factory for the @racket[id]
-  component replaced by @racket[factory].  This is useful if you have
-  a large system and you want to replace one of its components with a
-  stub (eg. for a web app's end-to-end tests).
+  Returns a stopped copy of @racket[s] with the factory for the
+  @racket[id] component replaced by @racket[factory].  This is useful
+  if you have a large system and you want to replace one of its
+  components with a stub (eg. for a web app's end-to-end tests).
 }
 
 @(define dot-url "https://www.graphviz.org/doc/info/lang.html")

@@ -9,15 +9,22 @@
          "dependency.rkt")
 
 (provide
+ (for-syntax component)
+
  define-system
 
  (contract-out
   [make-system (-> system-spec/c system?)]
+  [current-system (parameter/c (or/c false/c system?))]
   [system? (-> any/c boolean?)]
   [system-start (-> system? void?)]
   [system-stop (-> system? void?)]
-  [system-ref (-> system? symbol? component?)]
-  [system-get (-> system? symbol? component?)]
+  [system-ref (case->
+               (-> symbol? component?)
+               (-> system? symbol? component?))]
+  [system-get (case->
+               (-> symbol? component?)
+               (-> system? symbol? component?))]
   [system-replace (-> system? symbol? any/c system?)]
   [system->dot (-> system? string?)]
   [system->png (-> system? path-string? boolean?)]))
@@ -31,18 +38,21 @@
 
 (struct system (dependencies factories components))
 
-(define-syntax (define-system stx)
+(define current-system
+  (make-parameter #f))
+
+(begin-for-syntax
   (define-syntax-class component
     (pattern (name:id e:expr)
              #:with spec #'(list 'name (list) e))
     (pattern (name:id (dep-name:id ...) e:expr)
-             #:with spec #'(list 'name (list 'dep-name ...) e)))
+             #:with spec #'(list 'name (list 'dep-name ...) e))))
 
+(define-syntax (define-system stx)
   (syntax-parse stx
-    [(_ name:id component0:component component:component ...)
-     (with-syntax ([name (format-id #'name "~a-system" #'name)])
-       #'(define name
-           (make-system (list component0.spec component.spec ...))))]))
+    [(_ id:id component:component ...+)
+     #:with full-id (format-id #'id "~a-system" #'id)
+     #'(define full-id (make-system (list component.spec ...)))]))
 
 (define (make-system spec)
   (define-values (factories dependencies)
@@ -66,8 +76,9 @@
 
 (define (system-start s)
   (log-system-debug "starting system")
-  (for ([id (starting-order (system-dependencies s))])
-    (hash-set! (system-components s) id (start-component s id))))
+  (parameterize ([current-system s])
+    (for ([id (starting-order (system-dependencies s))])
+      (hash-set! (system-components s) id (start-component s id)))))
 
 (define (start-component s id)
   (log-system-debug "starting component ~a" id)
@@ -86,11 +97,15 @@
   (log-system-debug "stopping component ~a" id)
   (component-stop (system-ref s id)))
 
-(define (system-ref s id)
-  (with-handlers ([exn:fail?
-                   (lambda (e)
-                     (raise-argument-error 'system-ref "a declared component" id))])
-    (hash-ref (system-components s) id)))
+(define system-ref
+  (case-lambda
+    [(id)
+     (system-ref (current-system) id)]
+
+    [(s id)
+     (define components (system-components s))
+     (hash-ref components id (lambda ()
+                               (raise-argument-error 'system-ref "a declared component" id)))]))
 
 (define system-get system-ref)  ;; backwards-compat
 

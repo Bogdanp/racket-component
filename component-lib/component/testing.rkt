@@ -2,20 +2,13 @@
 
 (require (for-syntax racket/base
                      racket/syntax
-                     syntax/parse)
+                     syntax/parse
+                     "private/system.rkt")
          rackunit
          "private/system.rkt")
 
 (provide
  system-test-suite)
-
-(begin-for-syntax
-  (define-syntax-class component
-    (pattern (name:id e:expr)
-             #:with spec #'(list 'name (list) e))
-
-    (pattern (name:id (dep:id ...) e:expr)
-             #:with spec #'(list 'name (list 'dep ...) e))))
 
 (define-syntax (system-test-suite stx)
   (syntax-parse stx
@@ -40,10 +33,8 @@
           (lambda ()
             (dynamic-wind
               void
-              (lambda _
-                (after-e))
-              (lambda _
-                (system-stop system-name))))
+              (lambda () (after-e))
+              (lambda () (system-stop system-name))))
 
           (test-suite
            suite-name

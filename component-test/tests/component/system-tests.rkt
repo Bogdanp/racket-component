@@ -14,14 +14,10 @@
 
     (test-case "detects cycles"
       (struct service-a (x)
-        #:methods gen:component
-        [(define (component-start sa) sa)
-         (define (component-stop sa) sa)])
+        #:methods gen:component [])
 
       (struct service-b (x)
-        #:methods gen:component
-        [(define (component-start sb) sb)
-         (define (component-stop sb) sb)])
+        #:methods gen:component [])
 
       (check-exn
        exn:fail:user?
@@ -34,9 +30,7 @@
 
     (test-case "does not start outliers"
       (struct service-a ()
-        #:methods gen:component
-        [(define (component-start sa) sa)
-         (define (component-stop sa) sa)])
+        #:methods gen:component [])
 
       (define-system test
         [sa service-a])
@@ -69,12 +63,12 @@
       (struct a-service ()
         #:methods gen:component
         [(define (component-start a-service)
-           (set! events (cons 'a-service-started events))
-           a-service)
+           (begin0 a-service
+             (set! events (cons 'a-service-started events))))
 
          (define (component-stop a-service)
-           (set! events (cons 'a-service-stopped events))
-           a-service)])
+           (begin0 a-service
+             (set! events (cons 'a-service-stopped events))))])
 
       (define (make-a-service db)
         (check-eq? db (system-ref test-system 'db))
@@ -83,12 +77,12 @@
       (struct app ()
         #:methods gen:component
         [(define (component-start app)
-           (set! events (cons 'app-started events))
-           app)
+           (begin0 app
+             (set! events (cons 'app-started events))))
 
          (define (component-stop app)
-           (set! events (cons 'app-stopped events))
-           app)])
+           (begin0 app
+             (set! events (cons 'app-stopped events))))])
 
       (define (make-app db a-service)
         (check-eq? db (system-ref test-system 'db))
@@ -119,14 +113,10 @@
 
     (test-case "can replace components' factories within a system"
       (struct db (env)
-        #:methods gen:component
-        [(define (component-start a-db) a-db)
-         (define (component-stop a-db) a-db)])
+        #:methods gen:component [])
 
       (struct app (db)
-        #:methods gen:component
-        [(define (component-start an-app) an-app)
-         (define (component-stop an-app) an-app)])
+        #:methods gen:component [])
 
       (define-system prod
         [db (lambda () (db "production"))]
@@ -139,7 +129,36 @@
       (system-start prod-system)
       (system-start test-system)
       (check-equal? (db-env (system-ref prod-system 'db)) "production")
-      (check-equal? (db-env (system-ref test-system 'db)) "test")))))
+      (check-equal? (db-env (system-ref test-system 'db)) "test")))
+
+   (test-suite
+    "current-system"
+
+    (test-case "is installed upon startup"
+      (define s #f)
+      (struct janitor (thd)
+        #:methods gen:component
+        [(define (component-start j)
+           (janitor (thread
+                     (lambda ()
+                       (set! s (current-system))))))
+
+         (define (component-stop j)
+           (thread-wait (janitor-thd j))
+           (janitor #f))])
+
+      (struct app (janitor)
+        #:methods gen:component [])
+
+      (define-system prod
+        [app (janitor) app]
+        [janitor (lambda ()
+                   (janitor #f))])
+
+      (system-start prod-system)
+      (system-stop prod-system)
+      (check-eq? prod-system s)
+      (check-false (current-system))))))
 
 (module+ test
   (require rackunit/text-ui)
