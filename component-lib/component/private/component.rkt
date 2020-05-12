@@ -11,4 +11,7 @@
 
 (define-generics component
   (component-start component)
-  (component-stop component))
+  (component-stop component)
+  #:fallbacks
+  [(define component-start values)
+   (define component-stop values)])
