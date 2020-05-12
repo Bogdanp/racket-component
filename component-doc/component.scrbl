@@ -1,7 +1,10 @@
 #lang scribble/manual
 
 @(require (for-label component
-                     racket))
+                     db
+                     racket/base
+                     racket/contract)
+          scribble/example)
 
 @title{Component}
 @author[(author+email "Bogdan Popa" "bogdan@defn.io")]
@@ -10,57 +13,55 @@
 
 @section[#:tag "intro"]{Introduction}
 
-This library helps you manage the lifecycle of stateful objects in
-your application.  It ensures that objects are started, linked
-together and stopped in the correct order.
+This library helps you manage the lifecycle of stateful
+@tech{components} in your application.  It ensures that they are
+started, linked together and, finally, stopped in the correct order.
 
 By writing programs in this style, you trade some flexibility for
-clarity around how and when your objects are initialized and your code
-becomes easier to test since swapping out real implementations of
-components for stubs is trivial.
+clarity around how and when the individual parts of your application
+are initialized.
 
 @subsection{Guide}
 
 Let's assume that you're writing a web application that emails users
-when they sign up.  Your components are probably going to be:
+when they sign up.  Your components might be:
 
 @itemlist[
-  @item{the database (no dependencies),}
-  @item{the mailer (no dependencies),}
-  @item{the user manager (depends on the database) and}
-  @item{the http frontend (depends on each of the above).}
+  @item{the database,}
+  @item{the mailer,}
+  @item{the user manager, which depends on the database, and}
+  @item{the http frontend, which depends on the mailer and the user manager.}
 ]
 
-Assuming that each of the identified components is a struct that
-implements the @racket[gen:component] interface, your system might
-look something like this:
+Given those components, your system might look like this:
 
 @racketblock[
   (define-system prod
     [db make-database]
     [mailer make-mailer]
-    [user-manager (db) (lambda (db) (make-user-manager db))]
-    [http (db mailer user-manager) (lambda (db mailer user-manager)
-                                     (make-http db mailer user-manager))])
+    [users (db) (lambda (db)
+                  (make-user-manager db))]
+    [http (mailer users) (lambda (m um)
+                           (make-http m um))])
 
   (system-start prod-system)
   (system-stop prod-system)
 ]
 
 The system specification is made up of a list of component
-specifications.  Each component specification is made up of the unique
-name of a component in the system, an optional list of dependencies
-(other component names) and a function that can be used to construct
-that component from its dependencies.  There are no constraints on the
-names of the components in the system and you can have multiple
-components of the same type.
+specifications where each specification is made up of the unique id of
+a component in the system, an optional list of dependencies (other
+component ids) and a function that can be used to construct that
+component from its dependencies.  There are no constraints on the ids
+of the components in the system and you can have multiple components
+of the same type (for example, read-only and read-write databases).
 
-The @racket[define-system] form builds the system struct and its
-internal dependency graph but does not start the system.
+The @racket[define-system] form creates a value that represents the
+system and its internal dependency graph but does not start it.
 
 The call to @racket[system-start] starts the db and the mailer first
-(one or the other may be first since neither has any dependencies),
-then the user-manager and finally the http server.
+(one or the other may be started first since neither has any
+dependencies), then the user-manager and finally the http server.
 
 Finally, the call to @racket[system-stop] stops all the components in
 the system in the reverse order that they were started in.
@@ -70,53 +71,100 @@ the system in the reverse order that they were started in.
 Components that have no dependencies @emph{and} no dependents are
 never started.
 
-When a component fails during startup or shutdown (i.e. raises an
-exception), systems don't attempt to perform any sort of cleanup.
-This isn't really a limitation, but something to be aware of.
-
+@(define e (make-base-eval))
+@(e '(require component))
 
 @section[#:tag "reference"]{Reference}
 @subsection[#:tag "components"]{Components}
 
-Components are the basic building blocks of this library.  Every
-component needs to know how to start and stop itself.
+@deftech{Components} are plain @racket[struct]s that implement the
+@racket[gen:component] interface.  All that's required of a component
+is that it needs to know how to start and then stop itself.
 
-To define your own components, implement the @racket[gen:component]
-interface and its @racket[component-start] and @racket[component-stop]
-functions.  Here's an minimal component implementation:
+Here's a component that doesn't do anything except flip a flag when it
+gets started and stopped:
 
-@racketblock[
-  (struct mailer (started)
+@examples[
+  #:eval e
+  #:label #f
+  (struct mailer (started?)
+    #:transparent
     #:methods gen:component
     [(define (component-start a-mailer)
-       (struct-copy mailer a-mailer [started #t]))
+       (struct-copy mailer a-mailer [started? #t]))
 
      (define (component-stop a-mailer)
-       (struct-copy mailer a-mailer [started #f]))])
+       (struct-copy mailer a-mailer [started? #f]))])
 ]
 
-The implementations of @racket[component-start] and
-@racket[component-stop] must follow the contracts defined below.
+@examples[
+  #:eval e
+  #:label #f
+  (define m (mailer #f))
+  (mailer-started? m)
+  (mailer-started? (component-start m))
+]
 
-@deftogether[(
-  @defidform[#:kind "interface" gen:component]
-  @defproc[(component? [component any/c]) boolean?]
-)]{
-  The generic interface that specifies components.
+And here's what a component that encapsulates a database connection
+pool might look like:
+
+@(e '(require db))
+
+@examples[
+  #:eval e
+  #:label #f
+  (struct db (connector custodian pool)
+    #:transparent
+    #:methods gen:component
+    [(define (component-start the-db)
+       (define custodian (make-custodian))
+       (struct-copy db the-db
+                    [custodian custodian]
+                    [pool (parameterize ([current-custodian custodian])
+                           (connection-pool (db-connector the-db)))]))
+
+     (define (component-stop the-db)
+       (custodian-shutdown-all (db-custodian the-db))
+       (struct-copy db the-db
+                    [custodian #f]
+                    [pool #f]))])
+]
+
+@examples[
+  #:eval e
+  #:label #f
+  (define (make-db connector)
+    (db connector #f #f))
+]
+
+@examples[
+  #:eval e
+  #:label #f
+  (component-start
+   (make-db (lambda ()
+              (sqlite3-connect #:database 'temporary))))
+]
+
+@defidform[#:kind "interface" gen:component]{
+  The generic interface that @tech{components} must implement.
 }
 
-@defproc[(component-start [component component?]) component?]{
-  Starts a component.
+@defproc[(component? [v any/c]) boolean?]{
+  Returns @racket[#t] when @racket[v] is a @tech{component}.
 }
 
-@defproc[(component-stop [component component?]) component?]{
-  Stops a component.
+@defproc[(component-start [c component?]) component?]{
+  Starts @racket[c].
+}
+
+@defproc[(component-stop [c component?]) component?]{
+  Stops @racket[c].
 }
 
 
 @subsection[#:tag "systems"]{Systems}
 
-Systems group components together according to a declarative
+@deftech{Systems} group components together according to a declarative
 specification.
 
 When a system is started, its components are each started in
@@ -135,21 +183,20 @@ order that they were started in.
 
 @defproc[(make-system [spec (listof (or/c (list/c symbol? any/c)
                                           (list/c symbol? (listof symbol?) any/c)))]) system?]{
-  Creates a system object according to the given dependency
-  specification, but does not start it.  A user error is raised if the
-  spec contains any circular dependencies between components.
+  Creates a system according to the given specification, but does not
+  start it.  A user error is raised if the spec contains any circular
+  dependencies between components.
 }
 
-@defform[(define-system name component ...+)
+@defform[(define-system id component ...+)
          #:grammar
-         [(name id)
-          (component [component-name factory]
-                     [component-name (dependency-name ...) factory])
-          (dependency-name component-name)
-          (component-name id)
-          (factory expr)]]{
-  Syntactic sugar for @racket[define] and @racket[make-system].
-  @racket[-system] is appended to the given name so
+         [(component [component-id factory-expr]
+                     [component-id (dependency-id ...) factory-expr])]
+         #:contracts
+         [(factory-expr (-> any/c ... component?))]]{
+
+  Combines @racket[define] and @racket[make-system].  @racket[-system]
+  is appended to the given @racket[id] so
 
   @racketblock[
     (define-system prod
@@ -160,19 +207,19 @@ order that they were started in.
   defines a system called @racket[prod-system].
 }
 
-@defproc[(system-start [system system?]) void?]{
-  Starts a system.
+@defproc[(system-start [s system?]) void?]{
+  Starts @racket[s].
 }
 
-@defproc[(system-stop [system system?]) void?]{
-  Stops a system.
+@defproc[(system-stop [s system?]) void?]{
+  Stops @racket[s].
 }
 
 @defproc[(system-ref [system system?]
-                     [name symbol?]) component?]{
-  Get a component by its name from a system.  Raises @racket[exn:fail]
-  if called before the system is started or if @racket[name] refers to
-  a component that wasn't defined.
+                     [id symbol?]) component?]{
+  Get a component by id from a system.  Raises @racket[exn:fail] if
+  called before the system is started or if @racket[id] refers to a
+  nonexistent component.
 }
 
 @defproc[(system-replace [system system?]
@@ -184,15 +231,18 @@ order that they were started in.
   stub (eg. for a web app's end-to-end tests).
 }
 
+@(define dot-url "https://www.graphviz.org/doc/info/lang.html")
+
 @defproc[(system->dot [system system?]) string?]{
-  Generate @hyperlink["https://www.graphviz.org/doc/info/lang.html"]{dot}
-  notation representing a system's dependency graph.
+  Generate @hyperlink[dot-url]{dot} notation representing a system's
+  dependency graph.
 }
 
 @defproc[(system->png [system system?]
                       [output-path path-string?]) boolean?]{
   Generate a PNG of a system's dependency graph.  Requires Graphviz to
-  be installed and its dot command to be on the PATH.
+  be installed and its dot command to be available on the system
+  @tt{PATH}.
 }
 
 @section[#:tag "ack"]{Acknowledgements}
