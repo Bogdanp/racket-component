@@ -36,7 +36,4 @@
               (lambda () (after-e))
               (lambda () (system-stop system-name))))
 
-          (test-suite
-           suite-name
-
-           e ...)))]))
+          e ...))]))
