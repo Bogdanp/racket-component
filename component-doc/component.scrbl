@@ -16,7 +16,7 @@
 
 @section[#:tag "intro"]{Introduction}
 
-This library helps you manage the lifecycle of stateful
+This library helps you manage the life-cycle of stateful
 @tech{components} in your application.  It ensures that they are
 started, linked together and, finally, stopped in the correct order.
 
@@ -316,7 +316,7 @@ way to do this.
 }
 
 
-@section[#:tag "ack"]{Acknowledgements}
+@section[#:tag "ack"]{Acknowledgments}
 
 This library draws inspiration from Stuart Sierra's "component"
 library for Clojure.
