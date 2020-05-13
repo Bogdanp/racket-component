@@ -1,8 +1,6 @@
-# component
+# component ![CI](https://github.com/Bogdanp/racket-component/workflows/CI/badge.svg)
 
-![CI](https://github.com/Bogdanp/racket-component/workflows/CI/badge.svg)
-
-Dependency injection for Racket.
+Application lifecycle management for Racket.
 
 ## Documentation
 
