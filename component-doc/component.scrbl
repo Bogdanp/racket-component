@@ -1,9 +1,12 @@
 #lang scribble/manual
 
 @(require (for-label component
+                     component/testing
                      db
                      racket/base
-                     racket/contract)
+                     racket/contract
+                     rackunit
+                     rackunit/text-ui)
           scribble/example)
 
 @title{Component}
@@ -48,13 +51,13 @@ Given those components, your system might look like this:
   (system-stop prod-system)
 ]
 
-The system specification is made up of a list of component
-specifications where each specification is made up of the unique id of
-a component in the system, an optional list of dependencies (other
-component ids) and a function that can be used to construct that
-component from its dependencies.  There are no constraints on the ids
-of the components in the system and you can have multiple components
-of the same type (for example, read-only and read-write databases).
+The system is made up of a list of component declarations where each
+one is made up of the unique id of a component in the system, an
+optional list of dependencies (other component ids) and a function
+that can be used to construct that component from its dependencies.
+There are no constraints on the ids of the components in the system
+and you can have multiple components of the same type (for example,
+read-only and read-write databases).
 
 The @racket[define-system] form creates a value that represents the
 system and its internal dependency graph but does not start it.
@@ -73,6 +76,7 @@ never started.
 
 @(define e (make-base-eval))
 @(e '(require component))
+
 
 @section[#:tag "reference"]{Reference}
 @subsection[#:tag "components"]{Components}
@@ -161,24 +165,22 @@ pool might look like:
   Stops @racket[c].
 }
 
-
 @subsection[#:tag "systems"]{Systems}
 
 @deftech{Systems} group components together according to a declarative
 specification.
 
-When a system is started, its components are each started in
-dependency order (if @racket[a] depends on @racket[b] which depends on
-@racket[c] then @racket[c] is started first, then @racket[b] then
-@racket[a]) and injected into their dependents' factory functions
-(@racket[c] is passed to @racket[b] which is finally passed to
-@racket[a]).
+When a system is started, its components are started in dependency
+order (if @racket[a] depends on @racket[b] which depends on @racket[c]
+then @racket[c] is started first, then @racket[b] then @racket[a]) and
+injected into their dependents' factory functions (@racket[c] is
+passed to @racket[b] which is finally passed to @racket[a]).
 
 When a system is stopped, its components are stopped in the reverse
 order that they were started in.
 
-@defproc[(system? [system any/c]) boolean?]{
-  Returns @racket[#t] if @racket[system] is a system.
+@defproc[(system? [v any/c]) boolean?]{
+  Returns @racket[#t] if @racket[v] is a system.
 }
 
 @defproc[(make-system [spec (listof (or/c (list/c symbol? any/c)
@@ -208,18 +210,23 @@ order that they were started in.
 }
 
 @defproc[(system-start [s system?]) void?]{
-  Starts @racket[s].
+  Starts @racket[s].  Parameterizes @racket[current-system] so that it
+  refers to @racket[s] before any components are started.
 }
 
 @defproc[(system-stop [s system?]) void?]{
   Stops @racket[s].
 }
 
-@defproc[(system-ref [system system?]
-                     [id symbol?]) component?]{
+@defproc*[([(system-ref [id symbol?]) component?]
+           [(system-ref [s system?]
+                        [id symbol?]) component?])]{
   Get a component by id from a system.  Raises @racket[exn:fail] if
   called before the system is started or if @racket[id] refers to a
   nonexistent component.
+
+  The first variant attempts to look up @racket[id] from the
+  @racket[current-system], failing if one isn't installed.
 }
 
 @defproc[(system-replace [s system?]
@@ -233,17 +240,81 @@ order that they were started in.
 
 @(define dot-url "https://www.graphviz.org/doc/info/lang.html")
 
-@defproc[(system->dot [system system?]) string?]{
+@defproc[(system->dot [s system?]) string?]{
   Generate @hyperlink[dot-url]{dot} notation representing a system's
   dependency graph.
 }
 
-@defproc[(system->png [system system?]
+@defproc[(system->png [s system?]
                       [output-path path-string?]) boolean?]{
   Generate a PNG of a system's dependency graph.  Requires Graphviz to
   be installed and its dot command to be available on the system
   @tt{PATH}.
 }
+
+
+@subsection[#:tag "hatch"]{The Escape Hatch}
+
+Manually passing components around can be painful in highly-dynamic
+applications so the library provides an escape hatch for those
+use-cases.  When a system is started, @racket[current-system] is
+parameterized to point to the system itself.  That way, components'
+start and stop functions as well as any @racket[thread]s started by
+components are able to directly reference the system they are a part
+of.
+
+@defparam[current-system s (or/c false/c system?)]
+
+
+@subsection[#:tag "testing"]{Testing}
+@defmodule[component/testing]
+
+When integration testing components, you often need to put together a
+subset of components, start them up and reference them from within
+your tests.  The @racket[system-test-suite] form provides a convenient
+way to do this.
+
+@defform[(system-test-suite id (component ...+)
+           maybe-before
+           maybe-after
+           body-expr ...+)
+
+         #:grammar
+         [(component (code:line (component-id factory-expr)
+                                (component-id (dependency-id ...) factory-expr)))
+
+          (maybe-before (code:line)
+                        (code:line #:before before-expr))
+
+          (maybe-after (code:line)
+                       (code:line #:after after-expr))]]{
+
+  Produces a @racket[test-suite] that is associated with a custom
+  @tech{system} made up of the specified @racket[component]s.  The
+  system is started before the test suite runs and stopped after it
+  finishes.  During startup, each individual component is bound to an
+  identifier in the scope of the test suite so that tests may easily
+  reference the components.
+
+  @(e '(require component/testing rackunit rackunit/text-ui))
+  @examples[
+    #:eval e
+    #:label #f
+    (struct mailer ()
+      #:methods gen:component [])
+    (struct app (mailer)
+      #:methods gen:component [])
+
+    (run-tests
+     (system-test-suite app ([a (m) app]
+                             [m mailer])
+       (test-case "instantiated"
+         (check-true (system? app-system))
+         (check-true (app? a))
+         (check-true (mailer? (app-mailer a))))))
+  ]
+}
+
 
 @section[#:tag "ack"]{Acknowledgements}
 

@@ -10,5 +10,7 @@
                      "db-doc"
                      "db-lib"
                      "scribble-lib"
-                     "racket-doc"))
+                     "racket-doc"
+                     "rackunit-doc"
+                     "rackunit-lib"))
 (define update-implies '("component-lib"))
