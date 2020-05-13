@@ -94,11 +94,11 @@ gets started and stopped:
   (struct mailer (started?)
     #:transparent
     #:methods gen:component
-    [(define (component-start a-mailer)
-       (struct-copy mailer a-mailer [started? #t]))
+    [(define (component-start _)
+       (mailer #t))
 
-     (define (component-stop a-mailer)
-       (struct-copy mailer a-mailer [started? #f]))])
+     (define (component-stop _)
+       (mailer #f))])
 ]
 
 @examples[
