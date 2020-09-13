@@ -195,7 +195,7 @@ order that they were started in.
          [(component [component-id factory-expr]
                      [component-id (dependency-id ...) factory-expr])]
          #:contracts
-         [(factory-expr (-> any/c ... component?))]]{
+         [(factory-expr (-> any/c ... any/c))]]{
 
   Combines @racket[define] and @racket[make-system].  @racket[-system]
   is appended to the given @racket[id] so
@@ -218,9 +218,9 @@ order that they were started in.
   Stops @racket[s].
 }
 
-@defproc*[([(system-ref [id symbol?]) component?]
+@defproc*[([(system-ref [id symbol?]) any/c]
            [(system-ref [s system?]
-                        [id symbol?]) component?])]{
+                        [id symbol?]) any/c])]{
   Get a component by id from a system.  Raises @racket[exn:fail] if
   called before the system is started or if @racket[id] refers to a
   nonexistent component.
