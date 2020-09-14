@@ -20,11 +20,11 @@
   [system-start (-> system? void?)]
   [system-stop (-> system? void?)]
   [system-ref (case->
-               (-> symbol? component?)
-               (-> system? symbol? component?))]
+               (-> symbol? any/c)
+               (-> system? symbol? any/c))]
   [system-get (case->
-               (-> symbol? component?)
-               (-> system? symbol? component?))]
+               (-> symbol? any/c)
+               (-> system? symbol? any/c))]
   [system-replace (-> system? symbol? any/c system?)]
   [system->dot (-> system? string?)]
   [system->png (-> system? path-string? boolean?)]))
@@ -69,7 +69,7 @@
                            ([dep-id dep-ids])
                    (depend dependencies id dep-id)))]
 
-        [else
+        [_
          (error 'make-system "bad component definition ~a" definition)])))
 
   (system dependencies factories (make-hasheq)))
@@ -84,9 +84,11 @@
   (log-system-debug "starting component ~a" id)
   (define factory (hash-ref (system-factories s) id))
   (define dependencies (direct-dependencies (system-dependencies s) id))
-  (define arguments (map (lambda (id) (system-ref s id)) dependencies))
-  (define component (apply factory arguments))
-  (component-start component))
+  (define a-component (apply factory (for/list ([id (in-list dependencies)])
+                                       (system-ref s id))))
+  (if (component? a-component)
+      (component-start a-component)
+      a-component))
 
 (define (system-stop s)
   (log-system-debug "stopping system")
@@ -95,7 +97,10 @@
 
 (define (stop-component s id)
   (log-system-debug "stopping component ~a" id)
-  (component-stop (system-ref s id)))
+  (define a-component (system-ref s id))
+  (if (component? a-component)
+      (component-stop a-component)
+      a-component))
 
 (define system-ref
   (case-lambda
