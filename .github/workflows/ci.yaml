@@ -7,11 +7,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@master
       - name: Install Racket
-        uses: Bogdanp/setup-racket@v0.8
+        uses: Bogdanp/setup-racket@v1.6.1
         with:
           architecture: 'x64'
           distribution: 'full'
-          version: '7.7'
+          version: '8.2'
       - name: Install Package and its Dependencies
         run: raco pkg install --auto --batch component-lib/ component-test/ component-doc/ component/
       - name: Run Tests
