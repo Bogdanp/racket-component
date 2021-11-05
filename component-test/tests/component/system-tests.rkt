@@ -39,7 +39,58 @@
       (check-exn
        exn:fail?
        (lambda ()
-         (system-ref test-system 'sa)))))
+         (system-ref test-system 'sa))))
+
+    (test-case "handles startup failures gracefully"
+      (define events '())
+
+      (struct db ()
+        #:methods gen:component
+        [(define (component-start a-db)
+           (begin0 a-db
+             (set! events (cons 'db-started events))))
+         (define (component-stop a-db)
+           (begin0 a-db
+             (set! events (cons 'db-stopped events))))])
+
+      (struct posts (db)
+        #:methods gen:component
+        [(define (component-start a-posts)
+           (begin0 a-posts
+             (set! events (cons 'posts-started events))))
+         (define (component-stop a-posts)
+           (begin0 a-posts
+             (set! events (cons 'posts-stopped events))))])
+
+      (struct users (db)
+        #:methods gen:component
+        [(define (component-start a-users)
+           (set! events (cons 'users-failed events))
+           (error 'component-start "fail"))
+         (define (component-stop a-users)
+           a-users)])
+
+      (struct server (db users)
+        #:methods gen:component
+        [(define (component-start a-server)
+           (begin0 a-server
+             (set! events (cons 'server-started events))))
+         (define (component-stop a-server)
+           (begin0 a-server
+             (set! events (cons 'server-stopped events))))])
+
+      (define-system test
+        [db db]
+        [posts (db) posts]
+        [users (db) users]
+        [server (db users) server])
+
+      (check-exn
+       #rx"fail"
+       (λ () (system-start test-system)))
+      (check-equal?
+       (reverse events)
+       '(db-started posts-started users-failed posts-stopped db-stopped))))
 
    (test-suite
     "system-{start,stop}"
