@@ -10,16 +10,17 @@
          racket/system
          "graph.rkt")
 
-(provide (contract-out
-          [make-dependency-graph (->* () ((listof pair?)) graph?)]
-          [depends? (-> graph? any/c any/c boolean?)]
-          [depend (-> graph? any/c any/c graph?)]
-          [direct-dependencies (-> graph? any/c (listof any/c))]
-          [transitive-dependencies (-> graph? any/c (listof any/c))]
-          [starting-order (-> graph? (listof any/c))]
-          [stopping-order (-> graph? (listof any/c))]
-          [dependency-graph->dot (->* (graph?) (#:name string?) string?)]
-          [dependency-graph->png (->* (graph? path-string?) (#:name string?) boolean?)]))
+(provide
+ (contract-out
+  [make-dependency-graph (->* [] [(listof pair?)] graph?)]
+  [depends? (-> graph? any/c any/c boolean?)]
+  [depend (-> graph? any/c any/c graph?)]
+  [direct-dependencies (-> graph? any/c (listof any/c))]
+  [transitive-dependencies (-> graph? any/c (listof any/c))]
+  [starting-order (-> graph? (listof any/c))]
+  [stopping-order (-> graph? (listof any/c))]
+  [dependency-graph->dot (->* [graph?] [#:name string?] string?)]
+  [dependency-graph->png (->* [graph? path-string?] [#:name string?] boolean?)]))
 
 (define (make-dependency-graph [deps '()])
   (for/fold ([graph (make-graph)])
@@ -51,7 +52,7 @@
                         #:when (not (set-member? transitive-deps direct-dep)))
                (cons direct-dep deps)))])))
 
-(define starting-order (compose reverse graph-toposort))
+(define starting-order (compose1 reverse graph-toposort))
 (define stopping-order graph-toposort)
 
 (define (dependency-graph->dot dg #:name [name "G"])
@@ -65,8 +66,8 @@
 (define (dependency-graph->png dg output-path #:name [name "G"])
   (define filename (path->string (build-path output-path)))
   (match (process* (find-executable-path "dot") "-Tpng" "-o" filename)
-    [(list stdout stdin pid stderr control)
+    [(list _stdout stdin _pid _stderr control)
      (display (dependency-graph->dot dg #:name name) stdin)
      (close-output-port stdin)
      (control 'wait)
-     (= 0 (control 'exit-code))]))
+     (zero? (control 'exit-code))]))

@@ -211,7 +211,35 @@
       (system-start prod-system)
       (system-stop prod-system)
       (check-eq? prod-system s)
-      (check-false (current-system))))))
+      (check-false (current-system))))
+
+   (test-case "wrapper component"
+     (define started? #f)
+     (define stopped? #f)
+     (struct a (n))
+     (struct b (a))
+     (struct c (a)
+       #:methods gen:component
+       [(define (component-start self)
+          (set! started? #t)
+          (struct-copy c self))
+        (define (component-stop self)
+          (set! stopped? #t)
+          (struct-copy c self [a #f]))]
+       #:methods gen:wrapper-component
+       [(define (component-unwrap self)
+          (c-a self))])
+
+     (define-system prod
+       [b (c) b]
+       [c (lambda ()
+            (c (a 42)))])
+
+     (system-start prod-system)
+     (check-true started?)
+     (check-true (a? (b-a (system-ref prod-system 'b))))
+     (system-stop prod-system)
+     (check-true stopped?))))
 
 (module+ test
   (require rackunit/text-ui)

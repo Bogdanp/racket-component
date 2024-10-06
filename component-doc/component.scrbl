@@ -165,6 +165,46 @@ pool might look like:
   Stops @racket[c].
 }
 
+@subsubsection[#:tag "wrapper-components"]{Wrapper Components}
+
+@deftech{Wrapper components} transparently wrap values that cannot
+implement the @tech{component} interface themselves.
+
+@examples[
+  #:eval e
+  #:label #f
+  (struct a (n))
+  (struct b (a))
+  (struct c (a)
+    #:methods gen:component
+    [(define (component-start self)
+       (c (a 42)))]
+    #:methods gen:wrapper-component
+    [(define (component-unwrap self)
+       (c-a self))])
+  (define-system wrapped
+    [b (a) b]
+    [a (lambda ()
+         (c #f))])
+  (system-start wrapped-system)
+  (a? (system-ref wrapped-system 'a))
+  (system-stop wrapped-system)
+]
+
+@defidform[#:kind "interface" gen:wrapper-component]{
+  The generic interface for @tech{wrapper components}.
+
+  @history[#:added "1.3"]
+}
+
+@defproc[(wrapper-component? [v any/c]) boolean?]{
+  Returns @racket[#t] when @racket[v] is a @tech{wrapper component}.
+}
+
+@defproc[(component-unwrap [w wrapper-component?]) any/c]{
+  Returns the value wrapped by @racket[w].
+}
+
 @subsection[#:tag "systems"]{Systems}
 
 @deftech{Systems} group components together according to a declarative

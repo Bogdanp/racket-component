@@ -2,7 +2,7 @@
 
 (require (for-syntax racket/base
                      racket/syntax
-                     syntax/parse)
+                     syntax/parse/pre)
          racket/contract/base
          racket/match
          "component.rkt"
@@ -10,12 +10,10 @@
 
 (provide
  (for-syntax component)
-
  define-system
-
  (contract-out
   [make-system (-> system-spec/c system?)]
-  [current-system (parameter/c (or/c false/c system?))]
+  [current-system (parameter/c (or/c #f system?))]
   [system? (-> any/c boolean?)]
   [system-start (-> system? void?)]
   [system-stop (-> system? void?)]
@@ -105,10 +103,16 @@
 
 (define (stop-component s id)
   (log-system-debug "stopping component ~a" id)
-  (define a-component (system-ref s id))
+  (define a-component (get-component 'stop-component s id))
   (if (component? a-component)
       (component-stop a-component)
       a-component))
+
+(define (get-component who s id)
+  (hash-ref
+   (system-components s) id
+   (lambda ()
+     (raise-argument-error who "a declared component" id))))
 
 (define system-ref
   (case-lambda
@@ -116,20 +120,22 @@
      (system-ref (current-system) id)]
 
     [(s id)
-     (define components (system-components s))
-     (hash-ref components id (lambda ()
-                               (raise-argument-error 'system-ref "a declared component" id)))]))
+     (define a-component
+       (get-component 'system-ref s id))
+     (if (wrapper-component? a-component)
+         (component-unwrap a-component)
+         a-component)]))
 
 (define system-get system-ref)  ;; backwards-compat
 
 (define (system-replace s id factory)
   (define factories (system-factories s))
   (unless (hash-has-key? factories id)
-    (raise-argument-error 'system-ref "a declared component" id))
-
-  (struct-copy system s
-               [components (make-hash)]
-               [factories (hash-set factories id factory)]))
+    (raise-argument-error 'system-replace "a declared component" id))
+  (struct-copy
+   system s
+   [components (make-hash)]
+   [factories (hash-set factories id factory)]))
 
 (define (system->dot s)
   (dependency-graph->dot (system-dependencies s)))

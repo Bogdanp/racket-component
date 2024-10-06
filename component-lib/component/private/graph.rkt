@@ -7,17 +7,17 @@
          racket/match
          racket/set)
 
-(provide (struct-out exn:fail:graph)
-         (struct-out exn:fail:graph:cycle)
-
-         (contract-out
-          [struct graph ((mappings hash?))]
-          [make-graph (->* () ((listof pair?)) graph?)]
-          [graph-add-edge (-> graph? any/c any/c graph?)]
-          [graph-remove-edge (-> graph? any/c any/c graph?)]
-          [graph-edges (-> graph? (listof pair?))]
-          [graph-successors (-> graph any/c (listof any/c))]
-          [graph-toposort (-> graph? (listof any/c))]))
+(provide
+ (struct-out exn:fail:graph)
+ (struct-out exn:fail:graph:cycle)
+ (contract-out
+  [struct graph ((mappings hash?))]
+  [make-graph (->* [] [(listof pair?)] graph?)]
+  [graph-add-edge (-> graph? any/c any/c graph?)]
+  [graph-remove-edge (-> graph? any/c any/c graph?)]
+  [graph-edges (-> graph? (listof pair?))]
+  [graph-successors (-> graph any/c (listof any/c))]
+  [graph-toposort (-> graph? (listof any/c))]))
 
 (struct exn:fail:graph exn:fail ())
 (struct exn:fail:graph:cycle exn:fail:graph ())
